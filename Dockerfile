@@ -1,19 +1,5 @@
-FROM golang:1.25.2-alpine AS build
+FROM gcr.io/distroless/static-debian12
 
-WORKDIR /build
+COPY app /
 
-COPY go.mod .
-
-RUN go mod download
-
-COPY . .
-
-RUN CGO_ENABLED=0 GOOS=linux go build -o app cmd/main.go
-
-FROM golang:1.25.2-alpine
-
-WORKDIR /app
-
-COPY --from=build build/app .
-
-ENTRYPOINT ["./app"]
+ENTRYPOINT ["/app"]
