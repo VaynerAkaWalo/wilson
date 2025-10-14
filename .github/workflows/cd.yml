@@ -2,7 +2,7 @@ name: cd
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
   cd:
@@ -14,9 +14,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Create tag
-        id: commit_hash
-        run: echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Create a tag
+        id: image_tag
+        run: echo "IMAGE_TAG=CD-$(date +%Y%m%d%H%M)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Login to container registry
         uses: docker/login-action@v3
@@ -30,5 +30,5 @@ jobs:
         with:
           push: true
           tags: |
-            ghcr.io/vaynerakawalo/${{ github.event.repository.name }}:${{ steps.commit_hash.outputs.SHORT_SHA }}
+            ghcr.io/vaynerakawalo/${{ github.event.repository.name }}:${{ steps.image_tag.outputs.IMAGE_TAG }}
             ghcr.io/vaynerakawalo/${{ github.event.repository.name }}:latest
