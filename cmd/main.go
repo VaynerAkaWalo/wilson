@@ -3,7 +3,10 @@ package main
 import (
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"github.com/VaynerAkaWalo/go-toolkit/xlog"
-	"golang-template/internal/adapters/aprofile"
+	"golang-template/internal/adapters"
+	"golang-template/internal/adapters/action"
+	"golang-template/internal/adapters/profile"
+	"golang-template/internal/application/action"
 	"golang-template/internal/domain/profile"
 	"log"
 	"log/slog"
@@ -12,9 +15,9 @@ import (
 func main() {
 	slog.SetDefault(slog.New(xlog.NewPreConfiguredHandler()))
 
-	profileStore := aprofile.NewRepository()
+	profileStore := adapters.NewRepository()
 
-	profileHandler := aprofile.HttpHandler{
+	profileHandler := adapter_profile.HttpHandler{
 		Service: profile.Service{
 			ProfileRepository: profileStore,
 		},
@@ -24,6 +27,15 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	actionHandler := adapter_action.ActionHandler{
+		Service: usecase_action.PerformActionService{
+			ProfileRepository:  profileStore,
+			LocationRepository: adapter_action.LocationStore{},
+		},
+	}
+
+	actionHandler.StartActionLoop()
 
 	authN := xhttp.NewAuthenticator(authProvider)
 

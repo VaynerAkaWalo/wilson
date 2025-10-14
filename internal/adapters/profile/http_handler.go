@@ -1,4 +1,4 @@
-package aprofile
+package adapter_profile
 
 import (
 	"encoding/json"
