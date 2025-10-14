@@ -12,6 +12,6 @@ type (
 func (l LocationStore) Get(ctx context.Context, id action.LocationId) (action.Location, error) {
 	return action.Location{
 		Id:         id,
-		Multiplier: 0.3,
+		Multiplier: 0.35,
 	}, nil
 }
