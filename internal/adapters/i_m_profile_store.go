@@ -76,19 +76,6 @@ func (store *InMemoryProfileStore) Get(ctx context.Context, id action.ProfileId)
 	return action.Profile{}, fmt.Errorf("profile not found")
 }
 
-func (store *InMemoryProfileStore) UpdateGold(ctx context.Context, a action.Profile) error {
-	store.mutex.Lock()
-	defer store.mutex.Unlock()
-
-	for i, prof := range store.profiles {
-		if prof.Id == string(a.Id) {
-			store.profiles[i].Gold = a.Gold
-		}
-	}
-
-	return nil
-}
-
 func (store *InMemoryProfileStore) GetAll(ctx context.Context) ([]action.Profile, error) {
 	store.mutex.RLock()
 	defer store.mutex.RUnlock()
@@ -116,7 +103,5 @@ func (p *Profile) toActionView() *action.Profile {
 	return &action.Profile{
 		Id:       action.ProfileId(p.Id),
 		Location: action.LocationId(p.Location),
-		Level:    p.Level,
-		Gold:     p.Gold,
 	}
 }

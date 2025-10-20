@@ -3,13 +3,13 @@ package usecase_action
 import (
 	"context"
 	"golang-template/internal/domain/action"
+	"golang-template/pkg/ievent"
 )
 
 type (
 	ProfileRepository interface {
 		Get(context.Context, action.ProfileId) (action.Profile, error)
 		GetAll(context.Context) ([]action.Profile, error)
-		UpdateGold(context.Context, action.Profile) error
 	}
 
 	LocationRepository interface {
@@ -19,11 +19,12 @@ type (
 	PerformActionService struct {
 		ProfileRepository  ProfileRepository
 		LocationRepository LocationRepository
+		EventOrchestrator  *ievent.Orchestrator
 	}
 )
 
-func (service PerformActionService) Execute(ctx context.Context, profileId action.ProfileId) error {
-	profile, err := service.ProfileRepository.Get(ctx, profileId)
+func (service PerformActionService) Execute(ctx context.Context, id action.ProfileId) error {
+	profile, err := service.ProfileRepository.Get(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -34,25 +35,14 @@ func (service PerformActionService) Execute(ctx context.Context, profileId actio
 	}
 
 	act := action.New(profile, location)
-	err = profile.ConsumeAction(*act)
-	if err != nil {
-		return err
-	}
-
-	return service.ProfileRepository.UpdateGold(ctx, profile)
+	return service.EventOrchestrator.PublishEvent(ctx, act.CreateEvent())
 }
 
-func (service PerformActionService) GetEligibleProfiles(ctx context.Context) ([]action.ProfileId, error) {
+func (service PerformActionService) GetEligibleProfiles(ctx context.Context) ([]action.Profile, error) {
 	profiles, err := service.ProfileRepository.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	ids := make([]action.ProfileId, 0)
-
-	for _, prof := range profiles {
-		ids = append(ids, prof.Id)
-	}
-
-	return ids, nil
+	return profiles, nil
 }

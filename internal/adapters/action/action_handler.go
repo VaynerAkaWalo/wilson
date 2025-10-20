@@ -25,14 +25,16 @@ func (handler ActionHandler) StartActionLoop() {
 }
 
 func (handler ActionHandler) performActions() {
-	ctx := context.TODO()
-	profiles, err := handler.Service.GetEligibleProfiles(ctx)
+	parentCtx := context.Background()
+	profiles, err := handler.Service.GetEligibleProfiles(parentCtx)
 	if err != nil {
-		slog.ErrorContext(ctx, err.Error())
+		slog.ErrorContext(parentCtx, err.Error())
 	}
 
 	for _, prof := range profiles {
-		slog.InfoContext(ctx, string("performing action for profile "+prof))
-		handler.Service.Execute(ctx, prof)
+		err = handler.Service.Execute(parentCtx, prof.Id)
+		if err != nil {
+			slog.ErrorContext(parentCtx, "action failed %v", err.Error())
+		}
 	}
 }

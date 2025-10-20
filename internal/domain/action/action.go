@@ -9,10 +9,10 @@ type (
 	Id string
 
 	Action struct {
-		Id       Id
-		Player   ProfileId
-		Location LocationId
-		Reward   int64
+		Id       Id         `json:"id"`
+		Player   ProfileId  `json:"player"`
+		Location LocationId `json:"location"`
+		Reward   int64      `json:"reward"`
 	}
 )
 
@@ -22,6 +22,16 @@ func New(profile Profile, location Location) *Action {
 		Player:   profile.Id,
 		Location: location.Id,
 		Reward:   calculateReward(1, location.Multiplier),
+	}
+}
+
+func (action Action) CreateEvent() Event {
+	return Event{
+		Id:         action.Id,
+		Owner:      action.Player,
+		Location:   action.Location,
+		GoldReward: action.Reward,
+		ExpReward:  1,
 	}
 }
 

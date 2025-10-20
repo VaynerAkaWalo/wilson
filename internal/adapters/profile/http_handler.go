@@ -2,8 +2,11 @@ package adapter_profile
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
+	"golang-template/internal/domain/action"
 	"golang-template/internal/domain/profile"
+	"golang-template/pkg/ievent"
 	"log/slog"
 	"net/http"
 )
@@ -21,13 +24,15 @@ type (
 	}
 
 	HttpHandler struct {
-		Service profile.Service
+		Service           profile.Service
+		EventOrchestrator *ievent.Orchestrator
 	}
 )
 
 func (handler HttpHandler) RegisterRoutes(router *xhttp.Router) {
 	router.RegisterHandler("GET /v1/profiles", handler.getProfiles)
 	router.RegisterHandler("POST /v1/profiles", handler.createProfile)
+	router.RegisterHandler("GET /v1/profiles/{owner}/events", handler.profileEvents)
 }
 
 func (handler HttpHandler) getProfiles(w http.ResponseWriter, r *http.Request) error {
@@ -77,4 +82,59 @@ func (handler HttpHandler) createProfile(w http.ResponseWriter, r *http.Request)
 	}
 
 	return xhttp.WriteResponse(w, http.StatusCreated, response)
+}
+
+func (handler HttpHandler) profileEvents(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	owner := r.PathValue("owner")
+	if owner == "" {
+		return xhttp.NewError("unknown owner", http.StatusBadRequest)
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	done := ctx.Done()
+
+	dataChannel, err := handler.EventOrchestrator.RegisterListener(ctx)
+	if err != nil {
+		return err
+	}
+	defer handler.EventOrchestrator.UnregisterListener(ctx, dataChannel)
+	rc := http.NewResponseController(w)
+	w.WriteHeader(http.StatusOK)
+
+	for {
+		select {
+		case <-done:
+			return nil
+		case event := <-dataChannel:
+			ev, ok := event.(action.Event)
+			if !ok || string(ev.Owner) != owner {
+				break
+			}
+			_, err := fmt.Fprintf(w, "event: %s\n", "action-reward")
+			if err != nil {
+				slog.ErrorContext(r.Context(), err.Error())
+				return err
+			}
+			jsonData, err := json.Marshal(ev)
+			if err != nil {
+				slog.ErrorContext(r.Context(), err.Error())
+				return err
+			}
+			_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
+			if err != nil {
+				slog.ErrorContext(r.Context(), err.Error())
+				return err
+			}
+			err = rc.Flush()
+			if err != nil {
+				slog.ErrorContext(r.Context(), err.Error())
+				return err
+			}
+		}
+	}
 }

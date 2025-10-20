@@ -8,6 +8,7 @@ import (
 	"golang-template/internal/adapters/profile"
 	"golang-template/internal/application/action"
 	"golang-template/internal/domain/profile"
+	"golang-template/pkg/ievent"
 	"log"
 	"log/slog"
 )
@@ -15,12 +16,15 @@ import (
 func main() {
 	slog.SetDefault(slog.New(xlog.NewPreConfiguredHandler()))
 
+	orch := ievent.NewOrchestrator()
+
 	profileStore := adapters.NewRepository()
 
 	profileHandler := adapter_profile.HttpHandler{
 		Service: profile.Service{
 			ProfileRepository: profileStore,
 		},
+		EventOrchestrator: orch,
 	}
 
 	authProvider, err := xhttp.NewAuthenticationProvider()
@@ -32,12 +36,13 @@ func main() {
 		Service: usecase_action.PerformActionService{
 			ProfileRepository:  profileStore,
 			LocationRepository: adapter_action.LocationStore{},
+			EventOrchestrator:  orch,
 		},
 	}
 
 	actionHandler.StartActionLoop()
 
-	authN := xhttp.NewAuthenticator(authProvider)
+	authN := xhttp.NewAuthenticator(authProvider, "GET /event")
 
 	httpServer := xhttp.Server{
 		Addr:     ":8787",
