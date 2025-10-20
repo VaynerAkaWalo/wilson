@@ -2,6 +2,7 @@ package adapter_action
 
 import (
 	"context"
+	"fmt"
 	"golang-template/internal/application/action"
 	"log/slog"
 	"time"
@@ -34,7 +35,7 @@ func (handler ActionHandler) performActions() {
 	for _, prof := range profiles {
 		err = handler.Service.Execute(parentCtx, prof.Id)
 		if err != nil {
-			slog.ErrorContext(parentCtx, "action failed %v", err.Error())
+			slog.ErrorContext(parentCtx, fmt.Sprintf("action failed %v", err.Error()))
 		}
 	}
 }
