@@ -2,8 +2,8 @@ package usecase_action
 
 import (
 	"context"
+	"github.com/VaynerAkaWalo/go-toolkit/xevent"
 	"golang-template/internal/domain/action"
-	"golang-template/pkg/ievent"
 )
 
 type (
@@ -19,7 +19,7 @@ type (
 	PerformActionService struct {
 		ProfileRepository  ProfileRepository
 		LocationRepository LocationRepository
-		EventOrchestrator  *ievent.Orchestrator[action.Event]
+		Broker             *xevent.Broker
 	}
 )
 
@@ -35,7 +35,8 @@ func (service PerformActionService) Execute(ctx context.Context, id action.Profi
 	}
 
 	act := action.New(profile, location)
-	return service.EventOrchestrator.PublishEvent(ctx, act.CreateEvent())
+	xevent.PublishEvent(service.Broker, ctx, act.CreateEvent())
+	return nil
 }
 
 func (service PerformActionService) GetEligibleProfiles(ctx context.Context) ([]action.Profile, error) {

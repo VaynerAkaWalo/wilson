@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/VaynerAkaWalo/go-toolkit/xevent"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"golang-template/internal/domain/action"
 	"golang-template/internal/domain/profile"
 	"golang-template/internal/domain/transaction"
-	"golang-template/pkg/ievent"
 	"log/slog"
 	"net/http"
 	"time"
@@ -27,9 +27,8 @@ type (
 	}
 
 	HttpHandler struct {
-		Service                     profile.Service
-		ActionEventOrchestrator     *ievent.Orchestrator[action.Event]
-		GoldChangeEventOrchestrator *ievent.Orchestrator[transaction.GoldChangeEvent]
+		Service profile.Service
+		Broker  *xevent.Broker
 	}
 )
 
@@ -102,11 +101,11 @@ func (handler HttpHandler) profileEvents(w http.ResponseWriter, r *http.Request)
 
 	done := ctx.Done()
 
-	actionChannel := handler.ActionEventOrchestrator.RegisterListener(ctx)
-	defer handler.ActionEventOrchestrator.UnregisterListener(ctx, actionChannel)
+	actionChannel := xevent.RegisterListener[action.Event](handler.Broker, ctx)
+	defer xevent.RemoveListener[action.Event](handler.Broker, ctx, actionChannel)
 
-	goldChangeChannel := handler.GoldChangeEventOrchestrator.RegisterListener(ctx)
-	defer handler.GoldChangeEventOrchestrator.UnregisterListener(ctx, goldChangeChannel)
+	goldChangeChannel := xevent.RegisterListener[transaction.GoldChangeEvent](handler.Broker, ctx)
+	defer xevent.RemoveListener[transaction.GoldChangeEvent](handler.Broker, ctx, goldChangeChannel)
 
 	w.WriteHeader(http.StatusOK)
 
@@ -116,6 +115,10 @@ func (handler HttpHandler) profileEvents(w http.ResponseWriter, r *http.Request)
 		case <-done:
 			return nil
 		case actionEvent := <-actionChannel:
+			if profileId != string(actionEvent.ProfileId) {
+				break
+			}
+
 			event := &ActionEvent{
 				Id:   string(actionEvent.Id),
 				Gold: actionEvent.GoldReward,
@@ -129,6 +132,10 @@ func (handler HttpHandler) profileEvents(w http.ResponseWriter, r *http.Request)
 				return err
 			}
 		case goldChangeEvent := <-goldChangeChannel:
+			if profileId != goldChangeEvent.Profile {
+				break
+			}
+
 			event := &GoldChangeEvent{
 				Id:   goldChangeEvent.Id,
 				Gold: goldChangeEvent.GoldBalance,

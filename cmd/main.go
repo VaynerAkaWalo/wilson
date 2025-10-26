@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/VaynerAkaWalo/go-toolkit/xevent"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"github.com/VaynerAkaWalo/go-toolkit/xlog"
 	"golang-template/internal/adapters"
@@ -11,16 +12,14 @@ import (
 	"golang-template/internal/domain/action"
 	"golang-template/internal/domain/profile"
 	"golang-template/internal/domain/transaction"
-	"golang-template/pkg/ievent"
 	"log"
 	"log/slog"
 )
 
 func main() {
-	slog.SetDefault(slog.New(xlog.NewPreConfiguredHandler(transaction.ContextKey)))
+	slog.SetDefault(slog.New(xlog.NewPreConfiguredHandler(transaction.ContextKey, profile.ContextKey)))
 
-	actionEventOrchestrator := ievent.NewOrchestrator[action.Event]()
-	transactionEventOrchestrator := ievent.NewOrchestrator[transaction.GoldChangeEvent]()
+	broker := xevent.NewBroker(action.Event{}, transaction.GoldChangeEvent{})
 
 	profileStore := adapters.NewRepository()
 
@@ -28,8 +27,7 @@ func main() {
 		Service: profile.Service{
 			ProfileRepository: profileStore,
 		},
-		ActionEventOrchestrator:     actionEventOrchestrator,
-		GoldChangeEventOrchestrator: transactionEventOrchestrator,
+		Broker: broker,
 	}
 
 	authProvider, err := xhttp.NewAuthenticationProvider()
@@ -38,18 +36,18 @@ func main() {
 	}
 
 	transactionService := &transaction.Service{
-		BalanceStore:      profileStore,
-		EventOrchestrator: transactionEventOrchestrator,
+		BalanceStore: profileStore,
+		Broker:       broker,
 	}
 
-	transactionActionHandler := transaction.NewActionHandler(transactionService, actionEventOrchestrator)
+	transactionActionHandler := transaction.NewActionHandler(transactionService, broker)
 	go transactionActionHandler.StartEventConsumption(context.TODO())
 
 	actionHandler := adapter_action.ActionHandler{
 		Service: usecase_action.PerformActionService{
 			ProfileRepository:  profileStore,
 			LocationRepository: adapter_action.LocationStore{},
-			EventOrchestrator:  actionEventOrchestrator,
+			Broker:             broker,
 		},
 	}
 

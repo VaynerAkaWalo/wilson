@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/VaynerAkaWalo/go-toolkit/xevent"
 	"github.com/VaynerAkaWalo/go-toolkit/xuuid"
-	"golang-template/pkg/ievent"
+	"golang-template/internal/domain/profile"
 	"log/slog"
 )
 
 type (
 	Service struct {
-		BalanceStore      BalanceRepository
-		EventOrchestrator *ievent.Orchestrator[GoldChangeEvent]
+		BalanceStore BalanceRepository
+		Broker       *xevent.Broker
 	}
 
 	BalanceRepository interface {
@@ -23,6 +24,7 @@ type (
 
 func (service *Service) Perform(ctx context.Context, transaction Transaction) error {
 	ctx = context.WithValue(ctx, ContextKey, string(transaction.Id))
+	ctx = context.WithValue(ctx, profile.ContextKey, transaction.Profile)
 	slog.InfoContext(ctx, "Attempting to perform transaction")
 
 	for attempt := range 3 {
@@ -43,8 +45,8 @@ func (service *Service) Perform(ctx context.Context, transaction Transaction) er
 				GoldBalance: balance.Gold,
 			}
 
-			slog.Info("sending event")
-			return service.EventOrchestrator.PublishEvent(ctx, changeEvent)
+			xevent.PublishEvent[GoldChangeEvent](service.Broker, ctx, changeEvent)
+			return err
 		}
 
 		if !errors.Is(err, VersionMismatchError{}) {

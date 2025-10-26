@@ -1,9 +1,14 @@
 package profile
 
 import (
+	"github.com/VaynerAkaWalo/go-toolkit/xctx"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"github.com/VaynerAkaWalo/go-toolkit/xuuid"
 	"net/http"
+)
+
+const (
+	ContextKey xctx.ContextKey = "profile_id"
 )
 
 type (
