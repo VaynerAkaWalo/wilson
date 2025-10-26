@@ -19,7 +19,7 @@ type (
 	PerformActionService struct {
 		ProfileRepository  ProfileRepository
 		LocationRepository LocationRepository
-		EventOrchestrator  *ievent.Orchestrator
+		EventOrchestrator  *ievent.Orchestrator[action.Event]
 	}
 )
 

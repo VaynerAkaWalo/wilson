@@ -28,7 +28,7 @@ func New(profile Profile, location Location) *Action {
 func (action Action) CreateEvent() Event {
 	return Event{
 		Id:         action.Id,
-		Owner:      action.Player,
+		ProfileId:  action.Player,
 		Location:   action.Location,
 		GoldReward: action.Reward,
 		ExpReward:  1,

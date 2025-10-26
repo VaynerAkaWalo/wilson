@@ -6,17 +6,19 @@ import (
 	"github.com/VaynerAkaWalo/go-toolkit/xuuid"
 	"golang-template/internal/domain/action"
 	"golang-template/internal/domain/profile"
+	"golang-template/internal/domain/transaction"
 	"sync"
 )
 
 type (
 	Profile struct {
-		Id       string
-		Name     string
-		Owner    string
-		Location string
-		Level    int64
-		Gold     int64
+		Id          string
+		Name        string
+		Owner       string
+		Location    string
+		Level       int64
+		Gold        int64
+		GoldVersion int64
 	}
 
 	InMemoryProfileStore struct {
@@ -104,4 +106,47 @@ func (p *Profile) toActionView() *action.Profile {
 		Id:       action.ProfileId(p.Id),
 		Location: action.LocationId(p.Location),
 	}
+}
+
+func (p *Profile) toBalanceView() *transaction.Balance {
+	return &transaction.Balance{
+		Profile: p.Id,
+		Gold:    p.Gold,
+		Version: p.GoldVersion,
+	}
+}
+
+func (store *InMemoryProfileStore) GetBalance(ctx context.Context, profile string) (transaction.Balance, error) {
+	store.mutex.RLock()
+	defer store.mutex.RUnlock()
+
+	for _, prof := range store.profiles {
+		if prof.Id == profile {
+			return *prof.toBalanceView(), nil
+		}
+	}
+
+	return transaction.Balance{}, fmt.Errorf("profile not found")
+}
+
+func (store *InMemoryProfileStore) UpdateBalance(ctx context.Context, balance transaction.Balance) (transaction.Balance, error) {
+	store.mutex.Lock()
+	defer store.mutex.Unlock()
+
+	for i := range store.profiles {
+		prof := &store.profiles[i]
+
+		if prof.Id == balance.Profile {
+			if balance.Version != prof.GoldVersion {
+				return transaction.Balance{}, transaction.VersionMismatchError{}
+			}
+
+			prof.Gold = balance.Gold
+			prof.GoldVersion++
+
+			return *prof.toBalanceView(), nil
+		}
+	}
+
+	return transaction.Balance{}, fmt.Errorf("profile not found")
 }

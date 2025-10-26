@@ -6,49 +6,49 @@ import (
 )
 
 type (
-	Orchestrator struct {
-		channels []chan interface{}
+	Orchestrator[T any] struct {
+		channels []chan T
 		mutex    *sync.RWMutex
 	}
 )
 
-func NewOrchestrator() *Orchestrator {
-	return &Orchestrator{
-		channels: []chan interface{}{},
+func NewOrchestrator[T any]() *Orchestrator[T] {
+	return &Orchestrator[T]{
+		channels: make([]chan T, 0),
 		mutex:    &sync.RWMutex{},
 	}
 }
 
-func (o *Orchestrator) PublishEvent(ctx context.Context, event interface{}) error {
-	o.mutex.RLock()
-	defer o.mutex.RUnlock()
+func (orchestrator *Orchestrator[T]) PublishEvent(ctx context.Context, event T) error {
+	orchestrator.mutex.RLock()
+	defer orchestrator.mutex.RUnlock()
 
-	for _, cha := range o.channels {
+	for _, cha := range orchestrator.channels {
 		cha <- event
 	}
 
 	return nil
 }
 
-func (o *Orchestrator) RegisterListener(ctx context.Context) (chan interface{}, error) {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
+func (orchestrator *Orchestrator[T]) RegisterListener(ctx context.Context) chan T {
+	orchestrator.mutex.Lock()
+	defer orchestrator.mutex.Unlock()
 
-	channel := make(chan interface{})
-	o.channels = append(o.channels, channel)
+	channel := make(chan T)
+	orchestrator.channels = append(orchestrator.channels, channel)
 
-	return channel, nil
+	return channel
 }
 
-func (o *Orchestrator) UnregisterListener(ctx context.Context, channel chan interface{}) {
-	o.mutex.Lock()
-	defer o.mutex.Unlock()
+func (orchestrator *Orchestrator[T]) UnregisterListener(ctx context.Context, channel chan T) {
+	orchestrator.mutex.Lock()
+	defer orchestrator.mutex.Unlock()
 
 	close(channel)
 
-	for index, cha := range o.channels {
+	for index, cha := range orchestrator.channels {
 		if cha == channel {
-			o.channels = append(o.channels[:index], o.channels[index+1:]...)
+			orchestrator.channels = append(orchestrator.channels[:index], orchestrator.channels[index+1:]...)
 			return
 		}
 	}

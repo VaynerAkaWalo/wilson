@@ -1,14 +1,17 @@
 package adapter_profile
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"golang-template/internal/domain/action"
 	"golang-template/internal/domain/profile"
+	"golang-template/internal/domain/transaction"
 	"golang-template/pkg/ievent"
 	"log/slog"
 	"net/http"
+	"time"
 )
 
 type (
@@ -24,15 +27,16 @@ type (
 	}
 
 	HttpHandler struct {
-		Service           profile.Service
-		EventOrchestrator *ievent.Orchestrator
+		Service                     profile.Service
+		ActionEventOrchestrator     *ievent.Orchestrator[action.Event]
+		GoldChangeEventOrchestrator *ievent.Orchestrator[transaction.GoldChangeEvent]
 	}
 )
 
 func (handler HttpHandler) RegisterRoutes(router *xhttp.Router) {
 	router.RegisterHandler("GET /v1/profiles", handler.getProfiles)
 	router.RegisterHandler("POST /v1/profiles", handler.createProfile)
-	router.RegisterHandler("GET /v1/profiles/{owner}/events", handler.profileEvents)
+	router.RegisterHandler("GET /v1/profiles/{profileId}/events", handler.profileEvents)
 }
 
 func (handler HttpHandler) getProfiles(w http.ResponseWriter, r *http.Request) error {
@@ -86,9 +90,9 @@ func (handler HttpHandler) createProfile(w http.ResponseWriter, r *http.Request)
 
 func (handler HttpHandler) profileEvents(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
-	owner := r.PathValue("owner")
-	if owner == "" {
-		return xhttp.NewError("unknown owner", http.StatusBadRequest)
+	profileId := r.PathValue("profileId")
+	if profileId == "" {
+		return xhttp.NewError("unknown profileId", http.StatusBadRequest)
 	}
 
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -98,43 +102,70 @@ func (handler HttpHandler) profileEvents(w http.ResponseWriter, r *http.Request)
 
 	done := ctx.Done()
 
-	dataChannel, err := handler.EventOrchestrator.RegisterListener(ctx)
-	if err != nil {
-		return err
-	}
-	defer handler.EventOrchestrator.UnregisterListener(ctx, dataChannel)
-	rc := http.NewResponseController(w)
+	actionChannel := handler.ActionEventOrchestrator.RegisterListener(ctx)
+	defer handler.ActionEventOrchestrator.UnregisterListener(ctx, actionChannel)
+
+	goldChangeChannel := handler.GoldChangeEventOrchestrator.RegisterListener(ctx)
+	defer handler.GoldChangeEventOrchestrator.UnregisterListener(ctx, goldChangeChannel)
+
 	w.WriteHeader(http.StatusOK)
 
+	var err error
 	for {
 		select {
 		case <-done:
 			return nil
-		case event := <-dataChannel:
-			ev, ok := event.(action.Event)
-			if !ok || string(ev.Owner) != owner {
-				break
+		case actionEvent := <-actionChannel:
+			event := &ActionEvent{
+				Id:   string(actionEvent.Id),
+				Gold: actionEvent.GoldReward,
+				Exp:  actionEvent.ExpReward,
+				Date: time.Now().Unix(),
 			}
-			_, err := fmt.Fprintf(w, "event: %s\n", "action-reward")
+
+			err = sendEvent(ctx, w, Action, event)
 			if err != nil {
-				slog.ErrorContext(r.Context(), err.Error())
+				slog.ErrorContext(ctx, err.Error())
 				return err
 			}
-			jsonData, err := json.Marshal(ev)
-			if err != nil {
-				slog.ErrorContext(r.Context(), err.Error())
-				return err
+		case goldChangeEvent := <-goldChangeChannel:
+			event := &GoldChangeEvent{
+				Id:   goldChangeEvent.Id,
+				Gold: goldChangeEvent.GoldBalance,
 			}
-			_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
+
+			err = sendEvent(ctx, w, GoldChange, event)
 			if err != nil {
-				slog.ErrorContext(r.Context(), err.Error())
-				return err
-			}
-			err = rc.Flush()
-			if err != nil {
-				slog.ErrorContext(r.Context(), err.Error())
+				slog.ErrorContext(ctx, err.Error())
 				return err
 			}
 		}
 	}
+}
+
+func sendEvent(ctx context.Context, w http.ResponseWriter, eventType EventType, event interface{}) error {
+	rc := http.NewResponseController(w)
+
+	_, err := fmt.Fprintf(w, "event: %s\n", eventType)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return err
+	}
+	jsonData, err := json.Marshal(event)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return err
+	}
+	_, err = fmt.Fprintf(w, "data: %s\n\n", jsonData)
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return err
+	}
+	err = rc.Flush()
+	if err != nil {
+		slog.ErrorContext(ctx, err.Error())
+		return err
+	}
+
+	return nil
 }
