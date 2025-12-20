@@ -52,10 +52,9 @@ type (
 	}
 )
 
-func New(latitude, longitude int, multiplier float64) *Location {
+func New(latitude, longitude int, multiplier, noiseLevel float64) *Location {
 	terrain := terrains[rand.IntN(len(terrains))]
 	condition := conditions[rand.IntN(len(conditions))]
-	terrainType := terrainTypes[rand.IntN(len(terrainTypes))]
 
 	return &Location{
 		Id:               Id(xuuid.UUID()),
@@ -63,6 +62,19 @@ func New(latitude, longitude int, multiplier float64) *Location {
 		Latitude:         latitude,
 		Longitude:        longitude,
 		RewardMultiplier: multiplier,
-		Type:             terrainType,
+		Type:             selectTerrainType(noiseLevel),
+	}
+}
+
+func selectTerrainType(noiseValue float64) TerrainType {
+	switch {
+	case noiseValue < 0.35:
+		return OCEAN
+	case noiseValue < 0.50:
+		return BEACH
+	case noiseValue < 0.80:
+		return FOREST
+	default:
+		return MOUNTAINS
 	}
 }

@@ -3,12 +3,17 @@ package adapters
 import (
 	"context"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
+	"github.com/ojrac/opensimplex-go"
 	"golang-template/internal/domain/location"
 	"golang-template/internal/domain/profile"
 	"maps"
 	"math/rand/v2"
 	"net/http"
 	"slices"
+)
+
+const (
+	scale float64 = 6.5
 )
 
 type (
@@ -19,10 +24,13 @@ type (
 
 func NewLocationStore() *LocationStore {
 	locationMap := make(map[string]location.Location)
+	noise := opensimplex.NewNormalized(6767)
 
 	for x := range 32 {
 		for y := range 32 {
-			loc := location.New(x, y, 1+rand.Float64())
+			noiseLevel := noise.Eval2(float64(x)/scale, float64(y)/scale)
+
+			loc := location.New(x, y, 1+rand.Float64(), noiseLevel)
 			locationMap[string(loc.Id)] = *loc
 		}
 	}
@@ -46,7 +54,13 @@ func (l LocationStore) GetAll(ctx context.Context) ([]location.Location, error) 
 }
 
 func (l LocationStore) GetStartLocation(ctx context.Context) (profile.LocationId, error) {
-	ids := slices.Collect(maps.Keys(l.locations))
+	locations := slices.Collect(maps.Values(l.locations))
 
-	return profile.LocationId(ids[rand.IntN(len(ids))]), nil
+	for {
+		randomLocation := locations[rand.IntN(len(locations))]
+
+		if randomLocation.Type == location.BEACH {
+			return profile.LocationId(randomLocation.Id), nil
+		}
+	}
 }
