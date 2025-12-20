@@ -3,7 +3,6 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"github.com/VaynerAkaWalo/go-toolkit/xuuid"
 	"golang-template/internal/domain/action"
 	"golang-template/internal/domain/profile"
 	"golang-template/internal/domain/transaction"
@@ -52,7 +51,7 @@ func (store *InMemoryProfileStore) Save(ctx context.Context, p *profile.Profile)
 		Id:       string(p.Id),
 		Name:     p.Name,
 		Owner:    string(p.Owner),
-		Location: xuuid.Base32UUID(),
+		Location: string(p.Location),
 		Level:    p.Level,
 		Gold:     p.Gold,
 	}
@@ -93,11 +92,12 @@ func (store *InMemoryProfileStore) GetAll(ctx context.Context) ([]action.Profile
 
 func (p *Profile) toProfileView() *profile.Profile {
 	return &profile.Profile{
-		Id:    profile.Id(p.Id),
-		Name:  p.Name,
-		Owner: profile.OwnerId(p.Owner),
-		Level: p.Level,
-		Gold:  p.Gold,
+		Id:       profile.Id(p.Id),
+		Name:     p.Name,
+		Owner:    profile.OwnerId(p.Owner),
+		Level:    p.Level,
+		Gold:     p.Gold,
+		Location: profile.LocationId(p.Location),
 	}
 }
 

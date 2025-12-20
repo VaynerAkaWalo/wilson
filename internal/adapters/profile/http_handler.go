@@ -16,10 +16,11 @@ import (
 
 type (
 	Response struct {
-		Id    string `json:"id"`
-		Name  string `json:"name"`
-		Level int64  `json:"level"`
-		Gold  int64  `json:"gold"`
+		Id       string `json:"id"`
+		Name     string `json:"name"`
+		Level    int64  `json:"level"`
+		Gold     int64  `json:"gold"`
+		Location string `json:"location"`
 	}
 
 	Request struct {
@@ -54,10 +55,11 @@ func (handler HttpHandler) getProfiles(w http.ResponseWriter, r *http.Request) e
 	responseDtos := make([]Response, len(profiles))
 	for i, prof := range profiles {
 		responseDtos[i] = Response{
-			Id:    string(prof.Id),
-			Name:  prof.Name,
-			Level: prof.Level,
-			Gold:  prof.Gold,
+			Id:       string(prof.Id),
+			Name:     prof.Name,
+			Level:    prof.Level,
+			Gold:     prof.Gold,
+			Location: string(prof.Location),
 		}
 	}
 

@@ -7,8 +7,10 @@ import (
 	"github.com/VaynerAkaWalo/go-toolkit/xlog"
 	"golang-template/internal/adapters"
 	"golang-template/internal/adapters/action"
+	"golang-template/internal/adapters/location"
 	"golang-template/internal/adapters/profile"
 	"golang-template/internal/application/action"
+	"golang-template/internal/application/location"
 	"golang-template/internal/domain/action"
 	"golang-template/internal/domain/profile"
 	"golang-template/internal/domain/transaction"
@@ -22,10 +24,12 @@ func main() {
 	broker := xevent.NewBroker(action.Event{}, transaction.GoldChangeEvent{})
 
 	profileStore := adapters.NewRepository()
+	locationStore := adapters.NewLocationStore()
 
 	profileHandler := adapter_profile.HttpHandler{
 		Service: profile.Service{
-			ProfileRepository: profileStore,
+			ProfileRepository:  profileStore,
+			LocationRepository: locationStore,
 		},
 		Broker: broker,
 	}
@@ -53,11 +57,17 @@ func main() {
 
 	actionHandler.StartActionLoop()
 
-	authN := xhttp.NewAuthenticator(authProvider, "GET /event")
+	authN := xhttp.NewAuthenticator(authProvider)
+
+	getLocation := usecase_location.NewGetLocationService(locationStore)
+
+	locationHandler := adapter_location.HttpHandler{
+		Service: *getLocation,
+	}
 
 	httpServer := xhttp.Server{
 		Addr:     ":8787",
-		Handlers: []xhttp.RouteHandler{profileHandler},
+		Handlers: []xhttp.RouteHandler{profileHandler, locationHandler},
 		AuthN:    authN,
 	}
 

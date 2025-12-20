@@ -3,6 +3,7 @@ package profile
 import (
 	"context"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
+	"log/slog"
 	"net/http"
 )
 
@@ -11,9 +12,13 @@ type (
 		GetProfilesByOwner(context.Context, OwnerId) ([]Profile, error)
 		Save(context.Context, *Profile) error
 	}
+	LocationRepository interface {
+		GetStartLocation(context.Context) (LocationId, error)
+	}
 
 	Service struct {
-		ProfileRepository Repository
+		ProfileRepository  Repository
+		LocationRepository LocationRepository
 	}
 )
 
@@ -27,7 +32,13 @@ func (service Service) CreateProfile(ctx context.Context, name string) (*Profile
 		return nil, xhttp.NewError("failed to get owner for profile", http.StatusInternalServerError)
 	}
 
-	newProfile, err := New(name, ownerId)
+	startLocation, err := service.LocationRepository.GetStartLocation(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "unable to get start location for new profile")
+		return nil, xhttp.NewError("unexpected error while creating profile", http.StatusInternalServerError)
+	}
+
+	newProfile, err := New(name, ownerId, startLocation)
 	if err != nil {
 		return nil, err
 	}
