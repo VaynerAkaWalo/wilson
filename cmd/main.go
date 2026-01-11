@@ -5,6 +5,9 @@ import (
 	"github.com/VaynerAkaWalo/go-toolkit/xevent"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"github.com/VaynerAkaWalo/go-toolkit/xlog"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/caarlos0/env/v11"
 	"golang-template/internal/adapters"
 	"golang-template/internal/adapters/action"
 	"golang-template/internal/adapters/location"
@@ -18,12 +21,29 @@ import (
 	"log/slog"
 )
 
+type appConfig struct {
+	AwsAccessKey string `env:"DDB_ACCESS_KEY"`
+	AwsSecretKey string `env:"DDB_ACCESS_SECRET_KEY"`
+}
+
 func main() {
 	slog.SetDefault(slog.New(xlog.NewPreConfiguredHandler(transaction.ContextKey, profile.ContextKey)))
 
+	cfg, err := env.ParseAs[appConfig]()
+	if err != nil {
+		log.Fatal("unable to load env config")
+	}
+
+	cp := credentials.NewStaticCredentialsProvider(cfg.AwsAccessKey, cfg.AwsSecretKey, "")
+
+	awsCfg, err := config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(cp), config.WithRegion("eu-north-1"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	broker := xevent.NewBroker(action.Event{}, transaction.GoldChangeEvent{})
 
-	profileStore := adapters.NewRepository()
+	profileStore := adapter_profile.NewDDBProfileStore(awsCfg)
 	locationStore := adapters.NewLocationStore()
 
 	profileHandler := adapter_profile.HttpHandler{
