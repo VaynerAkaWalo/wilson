@@ -8,7 +8,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/caarlos0/env/v11"
-	"golang-template/internal/adapters"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"golang-template/internal/adapters/action"
 	"golang-template/internal/adapters/location"
 	"golang-template/internal/adapters/profile"
@@ -24,6 +26,7 @@ import (
 type appConfig struct {
 	AwsAccessKey string `env:"DDB_ACCESS_KEY"`
 	AwsSecretKey string `env:"DDB_ACCESS_SECRET_KEY"`
+	DBUrl        string `env:"DATABASE_URL"`
 }
 
 func main() {
@@ -41,10 +44,24 @@ func main() {
 		log.Fatal(err)
 	}
 
+	connPool, err := pgxpool.New(context.Background(), cfg.DBUrl)
+	if err != nil {
+		log.Fatal("Failed to connect to sql db")
+	}
+	defer connPool.Close()
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := goose.Up(stdlib.OpenDBFromPool(connPool), "migrations"); err != nil {
+		log.Fatalf("Migration error: %v", err)
+	}
+
 	broker := xevent.NewBroker(action.Event{}, transaction.GoldChangeEvent{})
 
 	profileStore := adapter_profile.NewDDBProfileStore(awsCfg)
-	locationStore := adapters.NewLocationStore()
+	locationStore := adapter_location.NewLocationStore(connPool)
 
 	profileHandler := adapter_profile.HttpHandler{
 		Service: profile.Service{
