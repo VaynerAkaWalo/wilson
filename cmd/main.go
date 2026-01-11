@@ -5,7 +5,12 @@ import (
 	"github.com/VaynerAkaWalo/go-toolkit/xevent"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"github.com/VaynerAkaWalo/go-toolkit/xlog"
-	"golang-template/internal/adapters"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/caarlos0/env/v11"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 	"golang-template/internal/adapters/action"
 	"golang-template/internal/adapters/location"
 	"golang-template/internal/adapters/profile"
@@ -18,13 +23,45 @@ import (
 	"log/slog"
 )
 
+type appConfig struct {
+	AwsAccessKey string `env:"DDB_ACCESS_KEY"`
+	AwsSecretKey string `env:"DDB_ACCESS_SECRET_KEY"`
+	DBUrl        string `env:"DATABASE_URL"`
+}
+
 func main() {
 	slog.SetDefault(slog.New(xlog.NewPreConfiguredHandler(transaction.ContextKey, profile.ContextKey)))
 
+	cfg, err := env.ParseAs[appConfig]()
+	if err != nil {
+		log.Fatal("unable to load env config")
+	}
+
+	cp := credentials.NewStaticCredentialsProvider(cfg.AwsAccessKey, cfg.AwsSecretKey, "")
+
+	awsCfg, err := config.LoadDefaultConfig(context.TODO(), config.WithCredentialsProvider(cp), config.WithRegion("eu-north-1"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	connPool, err := pgxpool.New(context.Background(), cfg.DBUrl)
+	if err != nil {
+		log.Fatal("Failed to connect to sql db")
+	}
+	defer connPool.Close()
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		log.Fatal(err)
+	}
+
+	if err := goose.Up(stdlib.OpenDBFromPool(connPool), "migrations"); err != nil {
+		log.Fatalf("Migration error: %v", err)
+	}
+
 	broker := xevent.NewBroker(action.Event{}, transaction.GoldChangeEvent{})
 
-	profileStore := adapters.NewRepository()
-	locationStore := adapters.NewLocationStore()
+	profileStore := adapter_profile.NewDDBProfileStore(awsCfg)
+	locationStore := adapter_location.NewLocationStore(connPool)
 
 	profileHandler := adapter_profile.HttpHandler{
 		Service: profile.Service{

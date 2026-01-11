@@ -2,6 +2,7 @@ package profile
 
 import (
 	"context"
+	"fmt"
 	"github.com/VaynerAkaWalo/go-toolkit/xhttp"
 	"log/slog"
 	"net/http"
@@ -34,7 +35,7 @@ func (service Service) CreateProfile(ctx context.Context, name string) (*Profile
 
 	startLocation, err := service.LocationRepository.GetStartLocation(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "unable to get start location for new profile")
+		slog.ErrorContext(ctx, fmt.Sprintf("unable to get start location for new profile, error: %v", err))
 		return nil, xhttp.NewError("unexpected error while creating profile", http.StatusInternalServerError)
 	}
 
